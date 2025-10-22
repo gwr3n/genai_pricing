@@ -1,5 +1,22 @@
 # genai_pricing
 
+Core package badges:
+
+![Codecov (with branch)](https://img.shields.io/codecov/c/gh/gwr3n/pyopl/main)
+ ![Python package](https://img.shields.io/github/actions/workflow/status/gwr3n/pyopl/.github%2Fworkflows%2Fpython-package.yml) ![Lint and type-check](https://img.shields.io/github/actions/workflow/status/gwr3n/pyopl/.github%2Fworkflows%2Flint-type.yml?branch=main&label=lint%20%2B%20type-check) [![Python versions](https://img.shields.io/pypi/pyversions/genai_pricing)](https://pypi.org/project/genai_pricing/) [![License](https://img.shields.io/github/license/gwr3n/genai_pricing)](LICENSE) [![Downloads](https://static.pepy.tech/badge/genai_pricing)](https://pepy.tech/project/genai_pricing) [![Release](https://img.shields.io/github/v/release/gwr3n/genai_pricing)](https://github.com/gwr3n/genai_pricing/releases)
+
+Quality and tooling:
+
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000?logo=python)](https://github.com/psf/black) [![Ruff](https://img.shields.io/badge/lint-ruff-1f79ff?logo=python)](https://github.com/astral-sh/ruff) [![mypy](https://img.shields.io/badge/type--checked-mypy-blue?logo=python)](https://github.com/python/mypy)
+
+Project/community:
+
+[![Issues](https://img.shields.io/github/issues/gwr3n/genai_pricing)](https://github.com/gwr3n/genai_pricing/issues) [![PRs](https://img.shields.io/github/issues-pr/gwr3n/genai_pricing)](https://github.com/gwr3n/genai_pricing/pulls) [![Stars](https://img.shields.io/github/stars/gwr3n/genai_pricing?style=social)](https://github.com/gwr3n/genai_pricing/stargazers)
+
+Docs:
+
+[![Docs](https://img.shields.io/badge/docs-site-blue)](https://github.com/gwr3n/genai_pricing)
+
 Estimate GenAI prompt costs from a unified, auto-updated pricing table. This repo provides a tiny helper around OpenAI responses plus a parser for a curated model pricing table.
 
 - Parses the pricing table at [`genai_pricing.PRICING_URL`](genai_pricing.py) or a local file
