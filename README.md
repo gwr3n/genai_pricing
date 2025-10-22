@@ -78,10 +78,11 @@ To pin a specific table, point [`genai_pricing.PRICING_URL`](genai_pricing.py) t
 
 ## Testing
 
-Run the tests in [test/genai_pricing_test.py](test/genai_pricing_test.py):
+The project uses Python’s built-in unittest.
 
+- Run all tests (discovery):
 ```sh
-python -m pytest -q
+python -m unittest discover -s test -p "*_test.py" -v
 ```
 
 ## API surface
@@ -101,4 +102,4 @@ MIT © 2025 Roberto Rossi
 
 ## Acknowledgements
 
-Pricing data sourced from the AgentOps tokencost table and mirrored locally at [data/pricing_table.md](data/pricing_table.md).
+Pricing data sourced from the AgentOps tokencost table and mirrored (22 Oct 2025) locally at [data/pricing_table.md](data/pricing_table.md) for testing purposes.
