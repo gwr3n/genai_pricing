@@ -43,7 +43,7 @@ resp = client.chat.completions.create(
 )
 
 answer = resp.choices[0].message.content
-estimate = openai_prompt_cost(model, prompt, answer, resp)
+estimate = openai_prompt_cost(model, prompt, answer, resp) # <- drop this in your project
 
 print("Cost (USD):", estimate["total_cost"])
 print("Details:", estimate)
