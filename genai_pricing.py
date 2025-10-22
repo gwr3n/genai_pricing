@@ -26,8 +26,8 @@
 # pip install openai
 
 import functools
-import re
 import os
+import re
 from typing import (
     Any,
     Dict,
@@ -66,18 +66,14 @@ def _count_openai_tokens(text: str, model_name: str) -> int:
         return _approx_token_count(text)
 
 
-def _usage_dict(
-    prompt_tokens: Optional[int], completion_tokens: Optional[int]
-) -> Dict[str, int]:  # NEW
+def _usage_dict(prompt_tokens: Optional[int], completion_tokens: Optional[int]) -> Dict[str, int]:  # NEW
     return {
         "prompt_tokens": int(prompt_tokens or 0),
         "completion_tokens": int(completion_tokens or 0),
     }
 
 
-def _extract_openai_usage(
-    resp: Any, input_text: str, output_text: str, model_name: str
-) -> Dict[str, int]:  # NEW
+def _extract_openai_usage(resp: Any, input_text: str, output_text: str, model_name: str) -> Dict[str, int]:  # NEW
     prompt_tokens = None
     completion_tokens = None
     try:
@@ -93,9 +89,7 @@ def _extract_openai_usage(
             return getattr(obj, key, None)
 
         prompt_tokens = _get(usage, "input_tokens") or _get(usage, "prompt_tokens")
-        completion_tokens = _get(usage, "output_tokens") or _get(
-            usage, "completion_tokens"
-        )
+        completion_tokens = _get(usage, "output_tokens") or _get(usage, "completion_tokens")
     except Exception:
         pass
     if prompt_tokens is None:
@@ -134,15 +128,11 @@ def _parse_pricing(path: str) -> Dict[str, Dict[str, Optional[float]]]:
         # make failure visible rather than silently returning empty rates
         import logging
 
-        logging.getLogger(__name__).warning(
-            "Failed to load pricing from %s: %s", path, exc
-        )
+        logging.getLogger(__name__).warning("Failed to load pricing from %s: %s", path, exc)
         return rates
 
     # helpers to parse amounts and units, normalizing to "per 1M"
-    def _cell_to_per_1m(
-        cell: str, default_unit: Optional[str] = None
-    ) -> Optional[float]:
+    def _cell_to_per_1m(cell: str, default_unit: Optional[str] = None) -> Optional[float]:
         if not cell:
             return None
         # find numeric value (allow commas)
@@ -177,10 +167,7 @@ def _parse_pricing(path: str) -> Dict[str, Dict[str, Optional[float]]]:
                 c0 = cols[0].lower()
                 c1 = cols[1].lower()
                 c2 = cols[2].lower()
-                if "model" in c0 and (
-                    ("prompt" in c1 or "completion" in c1)
-                    or ("prompt" in c2 or "completion" in c2)
-                ):
+                if "model" in c0 and (("prompt" in c1 or "completion" in c1) or ("prompt" in c2 or "completion" in c2)):
                     # capture units from header if present
                     if re.search(r"1\s*[kK]", cols[1]):
                         header_units["prompt"] = "1k"
@@ -271,9 +258,7 @@ def openai_client():
 
     api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENAI_KEY")
     if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY (or OPENAI_KEY) environment variable not set."
-        )
+        raise RuntimeError("OPENAI_API_KEY (or OPENAI_KEY) environment variable not set.")
 
     if OpenAI is not None:
         try:
@@ -291,9 +276,7 @@ def openai_client():
         except Exception:
             pass
 
-    raise RuntimeError(
-        "openai is installed but could not construct a client. Ensure openai package is up to date."
-    )
+    raise RuntimeError("openai is installed but could not construct a client. Ensure openai package is up to date.")
 
 
 # ----- PUBLIC INTERFACE -----
@@ -304,9 +287,7 @@ def clear_pricing_cache():
     _parse_pricing.cache_clear()
 
 
-def openai_prompt_cost(
-    model: str, prompt: str, answer: str, resp: Any
-) -> Dict[str, float]:
+def openai_prompt_cost(model: str, prompt: str, answer: str, resp: Any) -> Dict[str, float]:
     """Estimate OpenAI prompt and completion costs.
     Args:
         model: The OpenAI model name used.

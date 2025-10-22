@@ -1,13 +1,13 @@
-import unittest
-from pathlib import Path
-
-import genai_pricing as gp
 import os
 import sys
-import types
 import tempfile
+import types
+import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
+
+import genai_pricing as gp
 
 
 class TestParsePricing(unittest.TestCase):
@@ -40,12 +40,8 @@ class TestParsePricing(unittest.TestCase):
         self.assertAlmostEqual(rates["gpt-4"]["prompt_per_1M"], 30.0)
         self.assertAlmostEqual(rates["gpt-4"]["completion_per_1M"], 60.0)
 
-        self.assertAlmostEqual(
-            rates["openai/gpt-realtime-2025-08-28"]["prompt_per_1M"], 4.0
-        )
-        self.assertAlmostEqual(
-            rates["openai/gpt-realtime-2025-08-28"]["completion_per_1M"], 16.0
-        )
+        self.assertAlmostEqual(rates["openai/gpt-realtime-2025-08-28"]["prompt_per_1M"], 4.0)
+        self.assertAlmostEqual(rates["openai/gpt-realtime-2025-08-28"]["completion_per_1M"], 16.0)
 
     def test_header_not_included_as_row(self):
         rates = gp._parse_pricing(str(self.md_path))
@@ -90,17 +86,22 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
 |:------|:-----------------|:--------------------|
 | url-model | $0.10 | $0.20 |
 """
+
         class FakeResp:
             def __init__(self, text):
                 self._text = text.encode("utf-8")
+
             def read(self):
                 return self._text
+
             def __enter__(self):
                 return self
+
             def __exit__(self, exc_type, exc, tb):
                 return False
 
         calls = {"n": 0}
+
         def fake_urlopen(req, timeout=10):
             calls["n"] += 1
             return FakeResp(md)
@@ -140,9 +141,12 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
         class FakeEnc:
             def encode(self, text):
                 return list(range(7))  # pretend 7 tokens
+
         fake = types.ModuleType("tiktoken")
+
         def encoding_for_model(model):
             return FakeEnc()
+
         fake.encoding_for_model = encoding_for_model
         with mock.patch.dict(sys.modules, {"tiktoken": fake}):
             n = gp._count_openai_tokens("some text", "gpt-4o")
@@ -153,11 +157,15 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
         class FakeEnc:
             def encode(self, text):
                 return [0, 1, 2, 3]  # 4 tokens
+
         fake = types.ModuleType("tiktoken")
+
         def encoding_for_model(model):
             raise RuntimeError("no encoding")
+
         def get_encoding(name):
             return FakeEnc()
+
         fake.encoding_for_model = encoding_for_model
         fake.get_encoding = get_encoding
         with mock.patch.dict(sys.modules, {"tiktoken": fake}):
@@ -181,9 +189,7 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
         self.assertEqual(usage, {"prompt_tokens": 3, "completion_tokens": 7})
 
     def test__estimate_costs_with_exact_model(self):
-        fake_rates = {
-            "gpt-4o": {"prompt_per_1M": 2.0, "completion_per_1M": 8.0}
-        }
+        fake_rates = {"gpt-4o": {"prompt_per_1M": 2.0, "completion_per_1M": 8.0}}
         with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates):
             args = SimpleNamespace(model="gpt-4o")
             usage = {"prompt_tokens": 500_000, "completion_tokens": 250_000}
@@ -225,6 +231,7 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
         class FakeClient:
             def __init__(self, api_key=None):
                 self.api_key = api_key
+
         mod = types.ModuleType("openai")
         mod.OpenAI = FakeClient  # for "from openai import OpenAI"
         with mock.patch.dict(sys.modules, {"openai": mod}), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-123"}):
@@ -236,6 +243,7 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
         class FailingClient:
             def __init__(self, api_key=None):
                 raise RuntimeError("ctor failed")
+
         # openai module object to return
         mod = types.ModuleType("openai")
         mod.OpenAI = FailingClient
@@ -249,6 +257,7 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
         class FailingClient:
             def __init__(self, api_key=None):
                 raise RuntimeError("ctor failed")
+
         class NoSetAttr(types.ModuleType):
             def __setattr__(self, name, value):
                 if name == "api_key":
@@ -262,9 +271,7 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
                 gp.openai_client()
 
     def test_openai_prompt_cost_uses_usage_and_pricing(self):
-        fake_rates = {
-            "my-model": {"prompt_per_1M": 3.0, "completion_per_1M": 5.0}
-        }
+        fake_rates = {"my-model": {"prompt_per_1M": 3.0, "completion_per_1M": 5.0}}
         resp = {"usage": {"prompt_tokens": 200_000, "completion_tokens": 100_000}}
         with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates):
             est = gp.openai_prompt_cost("my-model", "ignored prompt", "ignored answer", resp)

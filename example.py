@@ -18,9 +18,7 @@ def example():
     )
 
     answer = resp.choices[0].message.content
-    estimate = openai_prompt_cost(
-        model, prompt, answer, resp
-    )  # <- use this line in your project
+    estimate = openai_prompt_cost(model, prompt, answer, resp)  # <- use this line in your project
 
     print("Cost (USD):", estimate["total_cost"])
 
