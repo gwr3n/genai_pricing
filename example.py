@@ -10,15 +10,19 @@ def example():
     client = openai_client()
     model = "gpt-4.1"
     prompt = "Why is the sky blue?"
+
     resp = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=50,
     )
+
     answer = resp.choices[0].message.content
-    cost_estimate = openai_prompt_cost(model, prompt, answer, resp)
-    print(f"Estimated cost for prompt: ${cost_estimate['total_cost']}")
-    return cost_estimate
+    estimate = openai_prompt_cost(
+        model, prompt, answer, resp
+    )  # <- use this line in your project
+
+    print("Cost (USD):", estimate["total_cost"])
 
 
 # ----- RUN EXAMPLE -----
