@@ -110,6 +110,7 @@ def _parse_pricing(path: str) -> Dict[str, Dict[str, Optional[float]]]:
     # Explicit type for mypy
     rates: Dict[str, Dict[str, Optional[float]]] = {}
     try:
+
         def _read_text(src: str) -> str:
             if re.match(r"^https?://", src, re.I):
                 # Normalize GitHub "blob" URL to raw content
@@ -121,6 +122,7 @@ def _parse_pricing(path: str) -> Dict[str, Dict[str, Optional[float]]]:
                 if m:
                     src = f"https://raw.githubusercontent.com/{m.group(1)}/{m.group(2)}/{m.group(3)}/{m.group(4)}"
                 import urllib.request
+
                 req = urllib.request.Request(src, headers={"User-Agent": "pyopl/1.0"})
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     return resp.read().decode("utf-8", errors="replace")
@@ -131,6 +133,7 @@ def _parse_pricing(path: str) -> Dict[str, Dict[str, Optional[float]]]:
     except Exception as exc:
         # make failure visible rather than silently returning empty rates
         import logging
+
         logging.getLogger(__name__).warning(
             "Failed to load pricing from %s: %s", path, exc
         )
