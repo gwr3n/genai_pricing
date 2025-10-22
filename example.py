@@ -5,7 +5,7 @@ from genai_pricing import openai_client, openai_prompt_cost
 # -----------------------------
 
 
-def openai_prompt_cost():
+def example():
     """Estimate the cost of an OpenAI prompt using genai_pricing."""
     client = openai_client()
     model = "gpt-4.1"
@@ -24,4 +24,4 @@ def openai_prompt_cost():
 # ----- RUN EXAMPLE -----
 
 if __name__ == "__main__":
-    openai_prompt_cost()
+    example()
