@@ -60,7 +60,7 @@ python example.py
 Prices are looked up by model name in the pricing table, then applied to token counts:
 
 $$
-C = \frac{t_\text{in}}{10^6}\, p_\text{in} + \frac{t_\text{out}}{10^6}\, p_\text{out}
+C = \frac{t_\text{in}}{10^6}\. p_\text{in} + \frac{t_\text{out}}{10^6}\. p_\text{out}
 $$
 
 - $t_\text{in}$: prompt tokens
