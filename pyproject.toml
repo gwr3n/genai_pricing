@@ -1,0 +1,80 @@
+[project]
+name = "genai-pricing"
+version = "0.1.0"
+description = "Pricing utilities and cost estimation tools for Generative AI workloads."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+  { name = "Roberto Rossi", email = "robros@gmail.com" }
+]
+keywords = ["genai", "pricing", "cost", "ai", "llm"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "tiktoken",
+  "openai",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/genai_pricing"
+Repository = "https://github.com/your-org/genai_pricing"
+Issues = "https://github.com/your-org/genai_pricing/issues"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["test", "test.*"]
+
+[tool.setuptools.package-data]
+pyopl = ["icon/mindset.png"]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 127
+target-version = ["py39", "py310", "py311"]
+exclude = '''
+/(
+  \.git
+| \.venv
+| build
+| dist
+)/
+'''
+
+[tool.flake8]
+max-line-length = 120
+
+[tool.ruff]
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+# Core Flake8 rules + import sorting
+select = ["E", "F", "I"]
+
+[tool.coverage.run]
+branch = true
+source = ["genai_pricing"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
