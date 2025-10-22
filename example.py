@@ -1,0 +1,27 @@
+from genai_pricing import openai_client, openai_prompt_cost
+
+# ------- SAMPLE USAGE --------
+# OpenAI prompt cost estimation
+# -----------------------------
+
+
+def openai_prompt_cost():
+    """Estimate the cost of an OpenAI prompt using genai_pricing."""
+    client = openai_client()
+    model = "gpt-4.1"
+    prompt = "Why is the sky blue?"
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=50,
+    )
+    answer = resp.choices[0].message.content
+    cost_estimate = openai_prompt_cost(model, prompt, answer, resp)
+    print(f"Estimated cost for prompt: ${cost_estimate['total_cost']}")
+    return cost_estimate
+
+
+# ----- RUN EXAMPLE -----
+
+if __name__ == "__main__":
+    openai_prompt_cost()
