@@ -5,7 +5,6 @@ Estimate GenAI prompt costs from a unified, auto-updated pricing table. This rep
 - Parses the pricing table at [`genai_pricing.PRICING_URL`](genai_pricing.py) or a local file
 - Computes token usage (OpenAI usage when available, falls back to approximate/tiktoken)
 - Returns per-prompt cost breakdown for prompt and completion tokens
-- Works with the included table at [data/pricing_table.md](data/pricing_table.md)
 
 ## Installation
 
