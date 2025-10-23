@@ -223,10 +223,6 @@ def _estimate_costs(args, usage):
         for k, v in pricing.items():
             if key in k or k in key:
                 return v
-        # last resort: return first numeric entry
-        for v in pricing.values():
-            if v.get("prompt_per_1M") or v.get("completion_per_1M"):
-                return v
         return None
 
     est = {}
