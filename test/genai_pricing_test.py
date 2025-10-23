@@ -200,6 +200,7 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
 
     def test__estimate_costs_substring_and_last_resort(self):
         fake_rates = {
+            "last_resort": None,
             "foo": {"prompt_per_1M": 1.0, "completion_per_1M": None},
             "bar": {"prompt_per_1M": None, "completion_per_1M": 4.0},
         }
@@ -214,11 +215,11 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
             # total is sum (only prompt_cost)
             self.assertAlmostEqual(est["total_cost"], 0.1)
 
-            # No matching key -> last resort: pick first numeric entry in dict order
+            # No matching key -> last resort: zero rates
             args2 = SimpleNamespace(model="no-match")
             est2 = gp._estimate_costs(args2, usage)
-            # It should pick "foo" (first numeric prompt_per_1M)
-            self.assertAlmostEqual(est2["prompt_cost"], 0.1)
+            # no rates -> no costs
+            self.assertAlmostEqual(est2["total_cost"], 0.0)
 
     def test_openai_client_env_missing(self):
         # Ensure imports don't blow up; provide openai module without OpenAI attribute
