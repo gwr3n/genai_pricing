@@ -1,6 +1,6 @@
 [project]
 name = "genai-pricing"
-version = "0.2.0"
+version = "0.2.1"
 description = "Pricing utilities and cost estimation tools for Generative AI workloads."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -29,12 +29,13 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/genai_pricing"
-Repository = "https://github.com/your-org/genai_pricing"
-Issues = "https://github.com/your-org/genai_pricing/issues"
+Homepage = "https://github.com/gwr3n/genai_pricing"
+Repository = "https://github.com/gwr3n/genai_pricing"
+Issues = "https://github.com/gwr3n/genai_pricing/issues"
 
 [tool.setuptools]
 include-package-data = true
+py-modules = ["genai_pricing"]
 
 [tool.setuptools.packages.find]
 where = ["."]
