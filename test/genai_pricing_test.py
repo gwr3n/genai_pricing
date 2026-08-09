@@ -320,7 +320,7 @@ bad-inline: prompt unavailable, completion unavailable
         fake_rates = {"gpt-4o": {"prompt_per_1M": 2.0, "completion_per_1M": 8.0}}
         with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates) as parse_pricing:
             usage = {"prompt_tokens": 500_000, "completion_tokens": 250_000}
-            est = gp.estimate_costs("gpt-4o", usage)
+            est = gp.estimate_costs(SimpleNamespace(model="gpt-4o"), usage)
         parse_pricing.assert_called_once_with(gp.PRICING_URL)
         self.assertAlmostEqual(est["prompt_cost"], 2.0 * 0.5)
         self.assertAlmostEqual(est["completion_cost"], 8.0 * 0.25)
@@ -336,13 +336,14 @@ bad-inline: prompt unavailable, completion unavailable
         self.assertAlmostEqual(est["completion_cost"], 0.2)
         self.assertAlmostEqual(est["total_cost"], 0.3)
 
-    def test_estimate_costs_uses_explicit_pricing_source(self):
+    def test_estimate_costs_uses_resolved_pricing_source(self):
         fake_rates = {"source-model": {"prompt_per_1M": 10.0, "completion_per_1M": 20.0}}
-        with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates) as parse_pricing:
-            usage = {"prompt_tokens": 10_000, "completion_tokens": 20_000}
-            est = gp.estimate_costs("source-model", usage, pricing_source="explicit.json")
+        with mock.patch.object(gp, "_resolve_pricing_source", return_value="resolved.json"):
+            with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates) as parse_pricing:
+                usage = {"prompt_tokens": 10_000, "completion_tokens": 20_000}
+                est = gp.estimate_costs(SimpleNamespace(model="source-model"), usage)
 
-        parse_pricing.assert_called_once_with("explicit.json")
+        parse_pricing.assert_called_once_with("resolved.json")
         self.assertAlmostEqual(est["prompt_cost"], 0.1)
         self.assertAlmostEqual(est["completion_cost"], 0.4)
         self.assertAlmostEqual(est["total_cost"], 0.5)
@@ -355,7 +356,7 @@ bad-inline: prompt unavailable, completion unavailable
         with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates):
             # substring match: "foo-bar" should match "foo"
             usage = {"prompt_tokens": 100_000, "completion_tokens": 100_000}
-            est = gp.estimate_costs("foo-bar", usage)
+            est = gp.estimate_costs(SimpleNamespace(model="foo-bar"), usage)
             self.assertAlmostEqual(est.get("prompt_cost", 0.0), 0.1)
             # completion rate None -> only prompt cost counted
             self.assertNotIn("completion_cost", est)
@@ -363,7 +364,7 @@ bad-inline: prompt unavailable, completion unavailable
             self.assertAlmostEqual(est["total_cost"], 0.1)
 
             # No matching key -> zero rates
-            est2 = gp.estimate_costs("no-match", usage)
+            est2 = gp.estimate_costs(SimpleNamespace(model="no-match"), usage)
             # no rates -> no costs
             self.assertAlmostEqual(est2["total_cost"], 0.0)
 
@@ -372,7 +373,7 @@ bad-inline: prompt unavailable, completion unavailable
         resp = {"usage": {"prompt_tokens": 200_000, "completion_tokens": 100_000}}
         usage = gp._extract_openai_usage(resp, "ignored prompt", "ignored answer", "my-model")
         with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates):
-            est = gp.estimate_costs("my-model", usage)
+            est = gp.estimate_costs(SimpleNamespace(model="my-model"), usage)
         self.assertAlmostEqual(est["prompt_cost"], 3.0 * 0.2)
         self.assertAlmostEqual(est["completion_cost"], 5.0 * 0.1)
         self.assertAlmostEqual(est["total_cost"], est["prompt_cost"] + est["completion_cost"])
