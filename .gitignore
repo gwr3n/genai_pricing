@@ -4,3 +4,5 @@
 .vscode
 .coverage
 __pycache__
+*.egg-info
+dist

@@ -1,6 +1,6 @@
 [project]
 name = "genai-pricing"
-version = "0.1.0"
+version = "0.2.0"
 description = "Pricing utilities and cost estimation tools for Generative AI workloads."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -26,7 +26,6 @@ classifiers = [
 ]
 dependencies = [
   "tiktoken",
-  "openai",
 ]
 
 [project.urls]

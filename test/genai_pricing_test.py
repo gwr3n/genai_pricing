@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import tempfile
@@ -80,6 +81,16 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
         finally:
             os.unlink(tmp_path)
 
+    def test_parse_markdown_pricing_skips_comments_and_non_numeric_rows(self):
+        content = """\
+# comment
+| Model | Prompt | Completion |
+|:------|:-------|:-----------|
+| text-only | unavailable | unavailable |
+bad-inline: prompt unavailable, completion unavailable
+"""
+        self.assertEqual(gp._parse_markdown_pricing(content), {})
+
     def test_parse_pricing_from_url_and_cache_clear(self):
         md = """\
 | Model | Prompt (per 1K) | Completion (per 1K) |
@@ -122,6 +133,70 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
             self.assertEqual(calls["n"], 2)
             self.assertEqual(r3["url-model"]["prompt_per_1M"], 100.0)
             self.assertEqual(r3["url-model"]["completion_per_1M"], 200.0)
+
+    def test_resolve_pricing_source_prefers_current_working_directory_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            snapshot = Path(tmp_dir) / gp.LOCAL_PRICING_FILENAME
+            snapshot.write_text("{}", encoding="utf8")
+            with mock.patch("genai_pricing.Path.cwd", return_value=Path(tmp_dir)):
+                self.assertEqual(gp._resolve_pricing_source(), str(snapshot))
+
+    def test_resolve_pricing_source_prefers_repo_root_snapshot(self):
+        module_path = self.project_root / "pkg" / "subpkg" / "genai_pricing.py"
+        snapshot = self.project_root / gp.LOCAL_PRICING_FILENAME
+        snapshot.write_text("{}", encoding="utf8")
+        try:
+            with mock.patch("genai_pricing.Path.cwd", return_value=Path("/tmp/no-pricing-here")):
+                with mock.patch.object(gp, "__file__", str(module_path)):
+                    self.assertEqual(gp._resolve_pricing_source(), str(snapshot))
+        finally:
+            snapshot.unlink()
+
+    def test_resolve_pricing_source_prefers_module_directory_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            module_path = Path(tmp_dir) / "genai_pricing.py"
+            snapshot = Path(tmp_dir) / gp.LOCAL_PRICING_FILENAME
+            snapshot.write_text("{}", encoding="utf8")
+            with mock.patch("genai_pricing.Path.cwd", return_value=Path("/tmp/no-pricing-here")):
+                with mock.patch.object(gp, "__file__", str(module_path)):
+                    self.assertEqual(Path(gp._resolve_pricing_source()).resolve(), snapshot.resolve())
+
+    def test_read_pricing_text_rejects_unsupported_url_scheme(self):
+        with self.assertRaisesRegex(ValueError, "Unsupported pricing URL scheme"):
+            gp._read_pricing_text("ftp://example.com/prices.json")
+
+    def test_parse_pricing_unsupported_extension_returns_empty(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("not a supported pricing source")
+            tmp_path = f.name
+        try:
+            self.assertEqual(gp._parse_pricing(tmp_path), {})
+        finally:
+            os.unlink(tmp_path)
+
+    def test_parse_litellm_json_pricing(self):
+        content = json.dumps(
+            {
+                "sample_spec": {"input_cost_per_token": 99},
+                "ignored-string": "not a spec",
+                "ignored-bool": {"input_cost_per_token": True, "output_cost_per_token": False},
+                "json-model": {"input_cost_per_token": 0.000001, "output_cost_per_token": 0.000002},
+                "input-only": {"input_cost_per_token": 0.000003},
+            }
+        )
+        rates = gp._parse_litellm_json_pricing(content, "prices.json")
+
+        self.assertNotIn("sample_spec", rates)
+        self.assertNotIn("ignored-string", rates)
+        self.assertNotIn("ignored-bool", rates)
+        self.assertAlmostEqual(rates["json-model"]["prompt_per_1M"], 1.0)
+        self.assertAlmostEqual(rates["json-model"]["completion_per_1M"], 2.0)
+        self.assertAlmostEqual(rates["input-only"]["prompt_per_1M"], 3.0)
+        self.assertIsNone(rates["input-only"]["completion_per_1M"])
+
+    def test_parse_litellm_json_pricing_invalid_shapes_return_empty(self):
+        self.assertEqual(gp._parse_litellm_json_pricing("not-json", "bad.json"), {})
+        self.assertEqual(gp._parse_litellm_json_pricing("[]", "list.json"), {})
 
     def test__approx_token_count(self):
         self.assertEqual(gp._approx_token_count(""), 0)
@@ -172,6 +247,30 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
             n = gp._count_openai_tokens("text", "unknown-model")
         self.assertEqual(n, 4)
 
+    def test__count_openai_tokens_with_second_fallback_encoding(self):
+        class FakeEnc:
+            def encode(self, text):
+                return [0, 1]
+
+        fake = types.ModuleType("tiktoken")
+        calls = []
+
+        def encoding_for_model(model):
+            raise RuntimeError("no model encoding")
+
+        def get_encoding(name):
+            calls.append(name)
+            if name == "o200k_base":
+                raise RuntimeError("no o200k")
+            return FakeEnc()
+
+        fake.encoding_for_model = encoding_for_model
+        fake.get_encoding = get_encoding
+        with mock.patch.dict(sys.modules, {"tiktoken": fake}):
+            n = gp._count_openai_tokens("text", "unknown-model")
+        self.assertEqual(n, 2)
+        self.assertEqual(calls, ["o200k_base", "cl100k_base"])
+
     def test__usage_dict(self):
         d = gp._usage_dict(5, None)
         self.assertEqual(d, {"prompt_tokens": 5, "completion_tokens": 0})
@@ -188,94 +287,92 @@ other-model: prompt $0.05 / 1K, completion $0.25 / 1K
             usage = gp._extract_openai_usage({}, "abc", "defghij", "gpt-4o")
         self.assertEqual(usage, {"prompt_tokens": 3, "completion_tokens": 7})
 
-    def test__estimate_costs_with_exact_model(self):
+    def test__extract_openai_usage_from_attribute_usage(self):
+        resp = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=11, completion_tokens=13))
+        with mock.patch.object(gp, "_count_openai_tokens", side_effect=AssertionError("should not be called")):
+            usage = gp._extract_openai_usage(resp, "in", "out", "gpt-4o")
+        self.assertEqual(usage, {"prompt_tokens": 11, "completion_tokens": 13})
+
+    def test__extract_openai_usage_fallback_after_usage_access_error(self):
+        class BadResp:
+            @property
+            def usage(self):
+                raise RuntimeError("bad usage")
+
+        with mock.patch.object(gp, "_count_openai_tokens", side_effect=[2, 4]):
+            usage = gp._extract_openai_usage(BadResp(), "abc", "defghij", "gpt-4o")
+        self.assertEqual(usage, {"prompt_tokens": 2, "completion_tokens": 4})
+
+    def test__extract_gemini_usage_from_dict_and_attributes(self):
+        dict_resp = {"usage_metadata": {"prompt_token_count": 12, "candidates_token_count": 34}}
+        dict_expected = {"prompt_tokens": 12, "completion_tokens": 34}
+        self.assertEqual(gp._extract_gemini_usage(dict_resp, "in", "out"), dict_expected)
+
+        attr_resp = SimpleNamespace(usage_metadata=SimpleNamespace(prompt_token_count=56, candidates_token_count=78))
+        attr_expected = {"prompt_tokens": 56, "completion_tokens": 78}
+        self.assertEqual(gp._extract_gemini_usage(attr_resp, "in", "out"), attr_expected)
+
+    def test__extract_gemini_usage_fallback_counts(self):
+        usage = gp._extract_gemini_usage({}, "abcd", "abcdefghi")
+        self.assertEqual(usage, {"prompt_tokens": 1, "completion_tokens": 3})
+
+    def test_estimate_costs_with_exact_model(self):
         fake_rates = {"gpt-4o": {"prompt_per_1M": 2.0, "completion_per_1M": 8.0}}
-        with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates):
-            args = SimpleNamespace(model="gpt-4o")
+        with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates) as parse_pricing:
             usage = {"prompt_tokens": 500_000, "completion_tokens": 250_000}
-            est = gp._estimate_costs(args, usage)
+            est = gp.estimate_costs("gpt-4o", usage)
+        parse_pricing.assert_called_once_with(gp.PRICING_URL)
         self.assertAlmostEqual(est["prompt_cost"], 2.0 * 0.5)
         self.assertAlmostEqual(est["completion_cost"], 8.0 * 0.25)
         self.assertAlmostEqual(est["total_cost"], est["prompt_cost"] + est["completion_cost"])
 
-    def test__estimate_costs_substring_and_last_resort(self):
+    def test_estimate_costs_accepts_legacy_args_object(self):
+        fake_rates = {"legacy-model": {"prompt_per_1M": 1.0, "completion_per_1M": 2.0}}
+        with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates):
+            usage = {"prompt_tokens": 100_000, "completion_tokens": 100_000}
+            est = gp.estimate_costs(SimpleNamespace(model="legacy-model"), usage)
+
+        self.assertAlmostEqual(est["prompt_cost"], 0.1)
+        self.assertAlmostEqual(est["completion_cost"], 0.2)
+        self.assertAlmostEqual(est["total_cost"], 0.3)
+
+    def test_estimate_costs_uses_explicit_pricing_source(self):
+        fake_rates = {"source-model": {"prompt_per_1M": 10.0, "completion_per_1M": 20.0}}
+        with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates) as parse_pricing:
+            usage = {"prompt_tokens": 10_000, "completion_tokens": 20_000}
+            est = gp.estimate_costs("source-model", usage, pricing_source="explicit.json")
+
+        parse_pricing.assert_called_once_with("explicit.json")
+        self.assertAlmostEqual(est["prompt_cost"], 0.1)
+        self.assertAlmostEqual(est["completion_cost"], 0.4)
+        self.assertAlmostEqual(est["total_cost"], 0.5)
+
+    def test_estimate_costs_substring_and_unmatched_model(self):
         fake_rates = {
-            "last_resort": None,
             "foo": {"prompt_per_1M": 1.0, "completion_per_1M": None},
             "bar": {"prompt_per_1M": None, "completion_per_1M": 4.0},
         }
         with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates):
             # substring match: "foo-bar" should match "foo"
-            args = SimpleNamespace(model="foo-bar")
             usage = {"prompt_tokens": 100_000, "completion_tokens": 100_000}
-            est = gp._estimate_costs(args, usage)
+            est = gp.estimate_costs("foo-bar", usage)
             self.assertAlmostEqual(est.get("prompt_cost", 0.0), 0.1)
             # completion rate None -> only prompt cost counted
             self.assertNotIn("completion_cost", est)
             # total is sum (only prompt_cost)
             self.assertAlmostEqual(est["total_cost"], 0.1)
 
-            # No matching key -> last resort: zero rates
-            args2 = SimpleNamespace(model="no-match")
-            est2 = gp._estimate_costs(args2, usage)
+            # No matching key -> zero rates
+            est2 = gp.estimate_costs("no-match", usage)
             # no rates -> no costs
             self.assertAlmostEqual(est2["total_cost"], 0.0)
 
-    def test_openai_client_env_missing(self):
-        # Ensure imports don't blow up; provide openai module without OpenAI attribute
-        mod = types.ModuleType("openai")
-        with mock.patch.dict(sys.modules, {"openai": mod}), mock.patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(RuntimeError, "OPENAI_API_KEY"):
-                gp.openai_client()
-
-    def test_openai_client_new_style(self):
-        class FakeClient:
-            def __init__(self, api_key=None):
-                self.api_key = api_key
-
-        mod = types.ModuleType("openai")
-        mod.OpenAI = FakeClient  # for "from openai import OpenAI"
-        with mock.patch.dict(sys.modules, {"openai": mod}), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-123"}):
-            client = gp.openai_client()
-            self.assertIsInstance(client, FakeClient)
-            self.assertEqual(client.api_key, "sk-123")
-
-    def test_openai_client_fallback_to_modulelevel(self):
-        class FailingClient:
-            def __init__(self, api_key=None):
-                raise RuntimeError("ctor failed")
-
-        # openai module object to return
-        mod = types.ModuleType("openai")
-        mod.OpenAI = FailingClient
-        with mock.patch.dict(sys.modules, {"openai": mod}), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-xyz"}):
-            client_mod = gp.openai_client()
-            # Should be the module itself with api_key set
-            self.assertIs(client_mod, mod)
-            self.assertEqual(getattr(client_mod, "api_key"), "sk-xyz")
-
-    def test_openai_client_failure_when_setattr_fails(self):
-        class FailingClient:
-            def __init__(self, api_key=None):
-                raise RuntimeError("ctor failed")
-
-        class NoSetAttr(types.ModuleType):
-            def __setattr__(self, name, value):
-                if name == "api_key":
-                    raise RuntimeError("no setattr")
-                return super().__setattr__(name, value)
-
-        mod = NoSetAttr("openai")
-        mod.OpenAI = FailingClient
-        with mock.patch.dict(sys.modules, {"openai": mod}), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-xyz"}):
-            with self.assertRaisesRegex(RuntimeError, "could not construct a client"):
-                gp.openai_client()
-
-    def test_openai_prompt_cost_uses_usage_and_pricing(self):
+    def test_extract_openai_usage_feeds_estimate_costs(self):
         fake_rates = {"my-model": {"prompt_per_1M": 3.0, "completion_per_1M": 5.0}}
         resp = {"usage": {"prompt_tokens": 200_000, "completion_tokens": 100_000}}
+        usage = gp._extract_openai_usage(resp, "ignored prompt", "ignored answer", "my-model")
         with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates):
-            est = gp.openai_prompt_cost("my-model", "ignored prompt", "ignored answer", resp)
+            est = gp.estimate_costs("my-model", usage)
         self.assertAlmostEqual(est["prompt_cost"], 3.0 * 0.2)
         self.assertAlmostEqual(est["completion_cost"], 5.0 * 0.1)
         self.assertAlmostEqual(est["total_cost"], est["prompt_cost"] + est["completion_cost"])

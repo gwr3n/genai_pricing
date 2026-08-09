@@ -4,6 +4,8 @@ Core package badges:
 
 ![Codecov (with branch)](https://img.shields.io/codecov/c/gh/gwr3n/genai_pricing/main)
  ![Python package](https://img.shields.io/github/actions/workflow/status/gwr3n/genai_pricing/.github%2Fworkflows%2Fpython-package.yml) ![Lint and type-check](https://img.shields.io/github/actions/workflow/status/gwr3n/genai_pricing/.github%2Fworkflows%2Flint-type.yml?branch=main&label=lint%20%2B%20type-check) [![License](https://img.shields.io/github/license/gwr3n/genai_pricing)](LICENSE) [![Release](https://img.shields.io/github/v/release/gwr3n/genai_pricing)](https://github.com/gwr3n/genai_pricing/releases)
+ [PYPI](https://pypi.org/project/genai-pricing/) 
+ [![Downloads](https://pepy.tech/badge/genai-pricing)](https://pepy.tech/project/genai-pricing) 
 
 Quality and tooling:
 
@@ -17,49 +19,33 @@ Docs:
 
 [![Docs](https://img.shields.io/badge/docs-site-blue)](https://github.com/gwr3n/genai_pricing)
 
-Estimate GenAI prompt costs from a unified, auto-updated pricing table. This repo provides a tiny helper around OpenAI responses plus a parser for a curated model pricing table.
+Estimate GenAI prompt costs from a unified, auto-updated pricing table. This repo provides a small usage-based cost estimator plus parsers for LiteLLM JSON and markdown pricing tables.
 
 - Parses the pricing table at [`genai_pricing.PRICING_URL`](genai_pricing.py) or a local file
-- Computes token usage (OpenAI usage when available, falls back to approximate/tiktoken)
-- Returns per-prompt cost breakdown for prompt and completion tokens
+- Computes costs from a usage dictionary with `prompt_tokens` and `completion_tokens`
+- Includes internal helpers for OpenAI/Gemini-style usage extraction and fallback token counting
 
 ## Installation
 
 - Python 3.8+
 - Packages:
-  - openai
   - tiktoken
 
 ```sh
-pip install openai tiktoken
-```
-
-Set your OpenAI API key:
-
-```sh
-export OPENAI_API_KEY=YOUR_KEY
+pip install tiktoken
 ```
 
 ## Quick start
 
-The included example shows how to run a Chat Completions request and get a cost estimate using [`genai_pricing.openai_client`](genai_pricing.py) and [`genai_pricing.openai_prompt_cost`](genai_pricing.py). See [example.py](example.py).
+The included example shows how to estimate cost from a model name and token usage dictionary using [`genai_pricing.estimate_costs`](genai_pricing.py). See [example.py](example.py).
 
 ```python
 # Minimal example
-from genai_pricing import openai_client, openai_prompt_cost
+from genai_pricing import estimate_costs
 
-client = openai_client()
 model = "gpt-4.1"
-prompt = "Why is the sky blue?"
-
-resp = client.chat.completions.create(
-    model=model,
-    messages=[{"role": "user", "content": prompt}],
-    max_tokens=50,
-)
-
-answer = resp.choices[0].message.content
-estimate = openai_prompt_cost(model, prompt, answer, resp) # <- use this line in your project
+usage = {"prompt_tokens": 21_549, "completion_tokens": 7_091}
+estimate = estimate_costs(model, usage)
 
 print("Cost (USD):", estimate["total_cost"])
 print("Details:", estimate)
@@ -84,13 +70,13 @@ $$
 - $p_\text{in}$: USD per 1M input tokens
 - $p_\text{out}$: USD per 1M output tokens
 
-If the OpenAI response includes usage, that is used. Otherwise, the library uses tiktoken when possible, with a lightweight fallback heuristic.
+Provide token counts from your model provider when available. Internal helpers can extract OpenAI- and Gemini-style usage metadata and fall back to tiktoken or a lightweight heuristic when needed.
 
 ## Pricing table
 
-By default, prices are pulled from [`genai_pricing.PRICING_URL`](genai_pricing.py), which normalizes GitHub blob URLs to raw content and fetches with a short timeout. A local table is also included at [data/pricing_table.md](data/pricing_table.md) for offline/reference use.
+By default, prices are read from [`genai_pricing.PRICING_URL`](genai_pricing.py), the remote LiteLLM JSON source.
 
-To pin a specific table, point [`genai_pricing.PRICING_URL`](genai_pricing.py) to a raw URL or a local file path.
+To pin a specific table, pass `pricing_source` as a raw URL or local file path. For a local LiteLLM snapshot, use a path ending in `model_prices_and_context_window_backup.json`.
 
 ## Testing
 
@@ -103,10 +89,10 @@ python -m unittest discover -s test -p "*_test.py" -v
 
 ## API surface
 
-- [`genai_pricing.openai_client`](genai_pricing.py)
-  - Returns a preconfigured OpenAI client (uses OPENAI_API_KEY)
-- [`genai_pricing.openai_prompt_cost`](genai_pricing.py)
-  - Computes a dict with prompt/completion tokens, per-side costs, and total_cost
+- [`genai_pricing.estimate_costs`](genai_pricing.py)
+  - Computes a dict with prompt/completion costs and `total_cost` from a model name, a usage dictionary, and an optional `pricing_source`
+- [`genai_pricing.clear_pricing_cache`](genai_pricing.py)
+  - Clears cached pricing data so the configured source is fetched or read again
 
 Key constant:
 
