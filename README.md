@@ -21,7 +21,7 @@ Docs:
 
 Estimate GenAI prompt costs from a unified, auto-updated pricing table. This repo provides a small usage-based cost estimator plus parsers for LiteLLM JSON and markdown pricing tables.
 
-- Parses the pricing table at [`genai_pricing.PRICING_URL`](genai_pricing.py) or a local file
+- Parses a local LiteLLM pricing snapshot when present, otherwise falls back to [`genai_pricing.PRICING_URL`](genai_pricing.py)
 - Computes costs from a usage dictionary with `prompt_tokens` and `completion_tokens`
 - Includes internal helpers for OpenAI/Gemini-style usage extraction and fallback token counting
 
@@ -37,18 +37,37 @@ pip install tiktoken
 
 ## Quick start
 
-The included example shows how to estimate cost from a model name and token usage dictionary using [`genai_pricing.estimate_costs`](genai_pricing.py). See [example.py](example.py).
+The included example shows how to estimate cost from an args-like object and token usage dictionary using [`genai_pricing.estimate_costs`](genai_pricing.py). See [example.py](example.py).
 
 ```python
 # Minimal example
+import os
+from openai import OpenAI
+from types import SimpleNamespace
+
 from genai_pricing import estimate_costs
 
-model = "gpt-4.1"
-usage = {"prompt_tokens": 21_549, "completion_tokens": 7_091}
-estimate = estimate_costs(model, usage)
+"""Estimate the cost of an OpenAI prompt using genai_pricing."""
+api_key = os.environ.get("OPENAI_API_KEY")
+client = OpenAI(api_key=api_key)
+model = "gpt-5.6-sol"
+prompt = "Why is the sky blue?"
+
+resp = client.chat.completions.create(
+    model=model,
+    messages=[{"role": "user", "content": prompt}],
+    max_completion_tokens=50,
+)
+
+answer = resp.choices[0].message.content
+usage = {
+    "prompt_tokens": resp.usage.prompt_tokens,
+    "completion_tokens": resp.usage.completion_tokens,
+}
+args = SimpleNamespace(model=model)
+estimate = estimate_costs(args, usage)  # <- use this line in your project
 
 print("Cost (USD):", estimate["total_cost"])
-print("Details:", estimate)
 ```
 
 Run the example:
@@ -74,9 +93,13 @@ Provide token counts from your model provider when available. Internal helpers c
 
 ## Pricing table
 
-By default, prices are read from [`genai_pricing.PRICING_URL`](genai_pricing.py), the remote LiteLLM JSON source.
+By default, prices are resolved in this order:
 
-To pin a specific table, pass `pricing_source` as a raw URL or local file path. For a local LiteLLM snapshot, use a path ending in `model_prices_and_context_window_backup.json`.
+1. `model_prices_and_context_window_backup.json` in the current working directory
+2. `model_prices_and_context_window_backup.json` near the package/repository location
+3. [`genai_pricing.PRICING_URL`](genai_pricing.py), the remote LiteLLM JSON source
+
+The parsed pricing table is cached. Call `clear_pricing_cache()` after changing the local snapshot or when you want the remote source fetched again.
 
 ## Testing
 
@@ -90,7 +113,7 @@ python -m unittest discover -s test -p "*_test.py" -v
 ## API surface
 
 - [`genai_pricing.estimate_costs`](genai_pricing.py)
-  - Computes a dict with prompt/completion costs and `total_cost` from a model name, a usage dictionary, and an optional `pricing_source`
+  - Computes a dict with prompt/completion costs and `total_cost` from an object with a `.model` attribute and a usage dictionary
 - [`genai_pricing.clear_pricing_cache`](genai_pricing.py)
   - Clears cached pricing data so the configured source is fetched or read again
 
