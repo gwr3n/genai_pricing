@@ -1,3 +1,25 @@
+# MIT License
+#
+# Copyright (c) 2025 Roberto Rossi (https://gwr3n.github.io/)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import functools
 import json
 import logging
@@ -9,17 +31,13 @@ from typing import (
     Any,
     Dict,
     Optional,
-    Union,
 )
 
 # --- Logging Setup ---
 # Use module-level logger, and set DEBUG level for development
 logger = logging.getLogger(__name__)
 
-PRICING_URL = (
-    "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/"
-    "litellm_internal_staging/litellm/model_prices_and_context_window_backup.json"
-)
+PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/litellm_internal_staging/litellm/model_prices_and_context_window_backup.json"
 LOCAL_PRICING_FILENAME = "model_prices_and_context_window_backup.json"
 
 
@@ -296,10 +314,9 @@ def clear_pricing_cache():
     _parse_pricing.cache_clear()
 
 
-def estimate_costs(model: Union[str, Any], usage, pricing_source: Optional[str] = PRICING_URL):
-    pricing = _parse_pricing(pricing_source)
-    model_name = model if isinstance(model, str) else model.model
-    model_key = model_name.lower()
+def estimate_costs(args, usage):
+    pricing = _parse_pricing(_resolve_pricing_source())
+    model_key = args.model.lower()
     prompt_tokens = usage.get("prompt_tokens")
     completion_tokens = usage.get("completion_tokens")
 
@@ -314,7 +331,7 @@ def estimate_costs(model: Union[str, Any], usage, pricing_source: Optional[str] 
 
     est = {}
     entry = _find_model_entry(model_key)
-    logger.debug(f"Estimating costs for model '{model_name}' using pricing entry: {entry}")
+    logger.debug(f"Estimating costs for model '{args.model}' using pricing entry: {entry}")
     if entry and prompt_tokens is not None:
         p_rate = entry.get("prompt_per_1M")
         if p_rate is not None:
