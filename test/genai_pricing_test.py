@@ -180,7 +180,12 @@ bad-inline: prompt unavailable, completion unavailable
                 "sample_spec": {"input_cost_per_token": 99},
                 "ignored-string": "not a spec",
                 "ignored-bool": {"input_cost_per_token": True, "output_cost_per_token": False},
-                "json-model": {"input_cost_per_token": 0.000001, "output_cost_per_token": 0.000002},
+                "json-model": {
+                    "input_cost_per_token": 0.000001,
+                    "output_cost_per_token": 0.000002,
+                    "cache_creation_input_token_cost": 0.00000125,
+                    "cache_read_input_token_cost": 0.0000001,
+                },
                 "input-only": {"input_cost_per_token": 0.000003},
             }
         )
@@ -191,6 +196,8 @@ bad-inline: prompt unavailable, completion unavailable
         self.assertNotIn("ignored-bool", rates)
         self.assertAlmostEqual(rates["json-model"]["prompt_per_1M"], 1.0)
         self.assertAlmostEqual(rates["json-model"]["completion_per_1M"], 2.0)
+        self.assertAlmostEqual(rates["json-model"]["cache_creation_per_1M"], 1.25)
+        self.assertAlmostEqual(rates["json-model"]["cache_read_per_1M"], 0.1)
         self.assertAlmostEqual(rates["input-only"]["prompt_per_1M"], 3.0)
         self.assertIsNone(rates["input-only"]["completion_per_1M"])
 
@@ -281,6 +288,26 @@ bad-inline: prompt unavailable, completion unavailable
             usage = gp._extract_openai_usage(resp, "in", "out", "gpt-4o")
         self.assertEqual(usage, {"prompt_tokens": 10, "completion_tokens": 20})
 
+    def test__extract_openai_usage_with_cache_tokens(self):
+        resp = {
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "prompt_tokens_details": {"cached_tokens": 30},
+                "cache_creation_input_tokens": 10,
+            }
+        }
+        usage = gp._extract_openai_usage(resp, "in", "out", "gpt-4o")
+        self.assertEqual(
+            usage,
+            {
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "cache_creation_input_tokens": 10,
+                "cache_read_input_tokens": 30,
+            },
+        )
+
     def test__extract_openai_usage_fallback_counts(self):
         # No usage -> falls back to counting function
         with mock.patch.object(gp, "_count_openai_tokens", side_effect=[3, 7]):
@@ -312,6 +339,19 @@ bad-inline: prompt unavailable, completion unavailable
         attr_expected = {"prompt_tokens": 56, "completion_tokens": 78}
         self.assertEqual(gp._extract_gemini_usage(attr_resp, "in", "out"), attr_expected)
 
+    def test__extract_gemini_usage_with_cached_content(self):
+        resp = {
+            "usage_metadata": {
+                "prompt_token_count": 100,
+                "candidates_token_count": 20,
+                "cached_content_token_count": 40,
+            }
+        }
+        self.assertEqual(
+            gp._extract_gemini_usage(resp, "in", "out"),
+            {"prompt_tokens": 100, "completion_tokens": 20, "cache_read_input_tokens": 40},
+        )
+
     def test__extract_gemini_usage_fallback_counts(self):
         usage = gp._extract_gemini_usage({}, "abcd", "abcdefghi")
         self.assertEqual(usage, {"prompt_tokens": 1, "completion_tokens": 3})
@@ -325,6 +365,30 @@ bad-inline: prompt unavailable, completion unavailable
         self.assertAlmostEqual(est["prompt_cost"], 2.0 * 0.5)
         self.assertAlmostEqual(est["completion_cost"], 8.0 * 0.25)
         self.assertAlmostEqual(est["total_cost"], est["prompt_cost"] + est["completion_cost"])
+
+    def test_estimate_costs_replaces_regular_input_with_cached_input(self):
+        fake_rates = {
+            "cached-model": {
+                "prompt_per_1M": 5.0,
+                "completion_per_1M": 30.0,
+                "cache_creation_per_1M": 6.25,
+                "cache_read_per_1M": 0.5,
+            }
+        }
+        usage = {
+            "prompt_tokens": 1_000_000,
+            "completion_tokens": 100_000,
+            "cache_creation_input_tokens": 200_000,
+            "cache_read_input_tokens": 300_000,
+        }
+        with mock.patch.object(gp, "_parse_pricing", return_value=fake_rates):
+            est = gp.estimate_costs(SimpleNamespace(model="cached-model"), usage)
+
+        self.assertAlmostEqual(est["prompt_cost"], 2.5)
+        self.assertAlmostEqual(est["cache_creation_cost"], 1.25)
+        self.assertAlmostEqual(est["cache_read_cost"], 0.15)
+        self.assertAlmostEqual(est["completion_cost"], 3.0)
+        self.assertAlmostEqual(est["total_cost"], 6.9)
 
     def test_estimate_costs_accepts_legacy_args_object(self):
         fake_rates = {"legacy-model": {"prompt_per_1M": 1.0, "completion_per_1M": 2.0}}

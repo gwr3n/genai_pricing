@@ -111,6 +111,8 @@ def _usage_dict(prompt_tokens: Optional[int], completion_tokens: Optional[int]) 
 def _extract_openai_usage(resp: Any, input_text: str, output_text: str, model_name: str) -> Dict[str, int]:
     prompt_tokens = None
     completion_tokens = None
+    cache_creation_tokens = None
+    cache_read_tokens = None
     try:
         usage = getattr(resp, "usage", None)
         if usage is None and isinstance(resp, dict):
@@ -125,18 +127,29 @@ def _extract_openai_usage(resp: Any, input_text: str, output_text: str, model_na
 
         prompt_tokens = _get(usage, "input_tokens") or _get(usage, "prompt_tokens")
         completion_tokens = _get(usage, "output_tokens") or _get(usage, "completion_tokens")
+        cache_creation_tokens = _get(usage, "cache_creation_input_tokens")
+        cache_read_tokens = _get(usage, "cache_read_input_tokens")
+        if cache_read_tokens is None:
+            details = _get(usage, "input_tokens_details") or _get(usage, "prompt_tokens_details")
+            cache_read_tokens = _get(details, "cached_tokens")
     except Exception:
         pass
     if prompt_tokens is None:
         prompt_tokens = _count_openai_tokens(input_text, model_name)
     if completion_tokens is None:
         completion_tokens = _count_openai_tokens(output_text, model_name)
-    return _usage_dict(prompt_tokens, completion_tokens)
+    result = _usage_dict(prompt_tokens, completion_tokens)
+    if cache_creation_tokens:
+        result["cache_creation_input_tokens"] = int(cache_creation_tokens)
+    if cache_read_tokens:
+        result["cache_read_input_tokens"] = int(cache_read_tokens)
+    return result
 
 
 def _extract_gemini_usage(resp: Any, input_text: str, output_text: str) -> Dict[str, int]:
     prompt_tokens = None
     completion_tokens = None
+    cache_read_tokens = None
     try:
         um = getattr(resp, "usage_metadata", None)
         if um is None and isinstance(resp, dict):
@@ -151,13 +164,17 @@ def _extract_gemini_usage(resp: Any, input_text: str, output_text: str) -> Dict[
 
         prompt_tokens = _get(um, "prompt_token_count")
         completion_tokens = _get(um, "candidates_token_count")
+        cache_read_tokens = _get(um, "cached_content_token_count")
     except Exception:
         pass
     if prompt_tokens is None:
         prompt_tokens = _approx_token_count(input_text)
     if completion_tokens is None:
         completion_tokens = _approx_token_count(output_text)
-    return _usage_dict(prompt_tokens, completion_tokens)
+    result = _usage_dict(prompt_tokens, completion_tokens)
+    if cache_read_tokens:
+        result["cache_read_input_tokens"] = int(cache_read_tokens)
+    return result
 
 
 def _pricing_source_suffix(path: str) -> str:
@@ -206,10 +223,14 @@ def _parse_litellm_json_pricing(txt: str, path: str) -> Dict[str, Dict[str, Opti
             continue
         p_val = _numeric_to_per_1m(spec.get("input_cost_per_token"))
         c_val = _numeric_to_per_1m(spec.get("output_cost_per_token"))
-        if p_val is not None or c_val is not None:
+        cache_creation_val = _numeric_to_per_1m(spec.get("cache_creation_input_token_cost"))
+        cache_read_val = _numeric_to_per_1m(spec.get("cache_read_input_token_cost"))
+        if any(value is not None for value in (p_val, c_val, cache_creation_val, cache_read_val)):
             rates[str(model).lower()] = {
                 "prompt_per_1M": p_val,
                 "completion_per_1M": c_val,
+                "cache_creation_per_1M": cache_creation_val,
+                "cache_read_per_1M": cache_read_val,
             }
     return rates
 
@@ -322,6 +343,8 @@ def estimate_costs(args, usage):
     model_key = args.model.lower()
     prompt_tokens = usage.get("prompt_tokens")
     completion_tokens = usage.get("completion_tokens")
+    cache_creation_tokens = usage.get("cache_creation_input_tokens", 0) or 0
+    cache_read_tokens = usage.get("cache_read_input_tokens", 0) or 0
 
     def _find_model_entry(key):
         if key in pricing:
@@ -338,9 +361,22 @@ def estimate_costs(args, usage):
     if entry and prompt_tokens is not None:
         p_rate = entry.get("prompt_per_1M")
         if p_rate is not None:
-            est["prompt_cost"] = p_rate * (prompt_tokens / 1000000.0)
+            regular_prompt_tokens = max(0, prompt_tokens - cache_creation_tokens - cache_read_tokens)
+            est["prompt_cost"] = p_rate * (regular_prompt_tokens / 1000000.0)
+            if cache_creation_tokens:
+                cache_creation_rate = entry.get("cache_creation_per_1M")
+                est["cache_creation_cost"] = (p_rate if cache_creation_rate is None else cache_creation_rate) * (
+                    cache_creation_tokens / 1000000.0
+                )
+            if cache_read_tokens:
+                cache_read_rate = entry.get("cache_read_per_1M")
+                est["cache_read_cost"] = (p_rate if cache_read_rate is None else cache_read_rate) * (
+                    cache_read_tokens / 1000000.0
+                )
         c_rate = entry.get("completion_per_1M")
         if c_rate is not None and completion_tokens is not None:
             est["completion_cost"] = c_rate * (completion_tokens / 1000000.0)
-    est["total_cost"] = est.get("prompt_cost", 0.0) + est.get("completion_cost", 0.0)
+    est["total_cost"] = sum(
+        est.get(key, 0.0) for key in ("prompt_cost", "cache_creation_cost", "cache_read_cost", "completion_cost")
+    )
     return est

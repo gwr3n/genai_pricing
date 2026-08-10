@@ -26,6 +26,7 @@ def example():
     usage = {
         "prompt_tokens": resp.usage.prompt_tokens,
         "completion_tokens": resp.usage.completion_tokens,
+        "cache_read_input_tokens": getattr(resp.usage.prompt_tokens_details, "cached_tokens", 0) or 0,
     }
     args = SimpleNamespace(model=model)
     estimate = estimate_costs(args, usage)  # <- use this line in your project

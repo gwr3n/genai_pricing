@@ -22,7 +22,7 @@ Docs:
 Estimate GenAI prompt costs from a unified, auto-updated pricing table. This repo provides a small usage-based cost estimator plus parsers for LiteLLM JSON and markdown pricing tables.
 
 - Parses a local LiteLLM pricing snapshot when present, otherwise falls back to [`genai_pricing.PRICING_URL`](genai_pricing.py)
-- Computes costs from a usage dictionary with `prompt_tokens` and `completion_tokens`
+- Computes costs from prompt, completion, cache-creation, and cache-read token usage
 - Includes internal helpers for OpenAI/Gemini-style usage extraction and fallback token counting
 
 ## Installation
@@ -63,6 +63,7 @@ answer = resp.choices[0].message.content
 usage = {
     "prompt_tokens": resp.usage.prompt_tokens,
     "completion_tokens": resp.usage.completion_tokens,
+  "cache_read_input_tokens": resp.usage.prompt_tokens_details.cached_tokens,
 }
 args = SimpleNamespace(model=model)
 estimate = estimate_costs(args, usage)  # <- use this line in your project
@@ -78,16 +79,19 @@ python example.py
 
 ## How cost is computed
 
-Prices are looked up by model name in the pricing table, then applied to token counts:
+Prices are looked up by model name in the pricing table, then applied to token counts. `prompt_tokens` is the provider-reported total input count; cache creation and cache read counts are subsets charged in place of regular input:
 
 $$
-C = \frac{t_\text{in}}{10^6}\. p_\text{in} + \frac{t_\text{out}}{10^6}\. p_\text{out}
+C = \frac{(t_\text{in} - t_\text{create} - t_\text{read})p_\text{in} + t_\text{create}p_\text{create} + t_\text{read}p_\text{read} + t_\text{out}p_\text{out}}{10^6}
 $$
 
 - $t_\text{in}$: prompt tokens
+- $t_\text{create}$: `cache_creation_input_tokens`, when reported
+- $t_\text{read}$: `cache_read_input_tokens`, when reported
 - $t_\text{out}$: completion tokens
-- $p_\text{in}$: USD per 1M input tokens
-- $p_\text{out}$: USD per 1M output tokens
+- $p$: the corresponding USD price per 1M tokens
+
+The result includes `prompt_cost`, `cache_creation_cost`, `cache_read_cost`, and `completion_cost` when applicable, plus `total_cost`. If a model has no cache-specific rate, cached tokens fall back to its regular input rate.
 
 Provide token counts from your model provider when available. Internal helpers can extract OpenAI- and Gemini-style usage metadata and fall back to tiktoken or a lightweight heuristic when needed.
 
