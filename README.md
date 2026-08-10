@@ -4,7 +4,7 @@ Core package badges:
 
 ![Codecov (with branch)](https://img.shields.io/codecov/c/gh/gwr3n/genai_pricing/main)
  ![Python package](https://img.shields.io/github/actions/workflow/status/gwr3n/genai_pricing/.github%2Fworkflows%2Fpython-package.yml) ![Lint and type-check](https://img.shields.io/github/actions/workflow/status/gwr3n/genai_pricing/.github%2Fworkflows%2Flint-type.yml?branch=main&label=lint%20%2B%20type-check) [![License](https://img.shields.io/github/license/gwr3n/genai_pricing)](LICENSE) [![Release](https://img.shields.io/github/v/release/gwr3n/genai_pricing)](https://github.com/gwr3n/genai_pricing/releases)
- [PYPI](https://pypi.org/project/genai-pricing/) 
+ [![PyPI](https://img.shields.io/pypi/v/genai-pricing)](https://pypi.org/project/genai-pricing/)
  [![Downloads](https://pepy.tech/badge/genai-pricing)](https://pepy.tech/project/genai-pricing) 
 
 Quality and tooling:
