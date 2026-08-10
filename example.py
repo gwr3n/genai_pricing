@@ -1,12 +1,14 @@
 import os
-from openai import OpenAI
 from types import SimpleNamespace
+
+from openai import OpenAI
 
 from genai_pricing import estimate_costs
 
 # ------- SAMPLE USAGE --------
 # OpenAI prompt cost estimation
 # -----------------------------
+
 
 def example():
     """Estimate the cost of an OpenAI prompt using genai_pricing."""
@@ -21,7 +23,6 @@ def example():
         max_completion_tokens=50,
     )
 
-    answer = resp.choices[0].message.content
     usage = {
         "prompt_tokens": resp.usage.prompt_tokens,
         "completion_tokens": resp.usage.completion_tokens,
