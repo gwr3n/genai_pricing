@@ -1,6 +1,6 @@
 [project]
 name = "genai-pricing"
-version = "0.2.3"
+version = "1.0.0"
 description = "Pricing utilities and cost estimation tools for Generative AI workloads."
 readme = "README.md"
 requires-python = ">=3.8"

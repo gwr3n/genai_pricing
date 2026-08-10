@@ -63,7 +63,7 @@ answer = resp.choices[0].message.content
 usage = {
     "prompt_tokens": resp.usage.prompt_tokens,
     "completion_tokens": resp.usage.completion_tokens,
-  "cache_read_input_tokens": resp.usage.prompt_tokens_details.cached_tokens,
+    "cache_read_input_tokens": resp.usage.prompt_tokens_details.cached_tokens,
 }
 args = SimpleNamespace(model=model)
 estimate = estimate_costs(args, usage)  # <- use this line in your project
@@ -128,7 +128,3 @@ Key constant:
 ## License
 
 MIT © 2025 Roberto Rossi
-
-## Acknowledgements
-
-Pricing data sourced from the AgentOps tokencost table and mirrored (22 Oct 2025) locally at [data/pricing_table.md](data/pricing_table.md) for testing purposes.
