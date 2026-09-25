@@ -37,10 +37,7 @@ from typing import (
 # Use module-level logger, and set DEBUG level for development
 logger = logging.getLogger(__name__)
 
-PRICING_URL = (
-    "https://raw.githubusercontent.com/BerriAI/litellm/main/litellm/"
-    "model_prices_and_context_window_backup.json"
-)
+PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/litellm/model_prices_and_context_window_backup.json"
 LOCAL_PRICING_FILENAME = "model_prices_and_context_window_backup.json"
 
 
