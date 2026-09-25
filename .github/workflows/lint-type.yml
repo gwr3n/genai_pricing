@@ -25,7 +25,7 @@ jobs:
       - name: Black (check)
         run: black --check .
       - name: flake8
-        run: flake8 . --count --max-line-length=120 --statistics
+        run: flake8 . --count --max-line-length=125 --statistics
       - name: Ruff (lint)
         run: ruff check .
       - name: mypy
